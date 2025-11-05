@@ -65,3 +65,18 @@ services:
         env_file:
             - contrib/container/docker.dev.env
         restart: unless-stopped
+
+    # Frontend development server (Vite)
+    inventree-dev-frontend:
+        image: inventree-dev-image
+        build: *build_config
+        command: sh -c "if [ ! -d 'src/frontend/node_modules' ]; then invoke int.frontend-install; fi && invoke dev.frontend-server"
+        ports:
+            - 5173:5173
+        depends_on:
+            - inventree-dev-server
+        volumes:
+            - ./:/home/inventree:z
+        env_file:
+            - contrib/container/docker.dev.env
+        restart: unless-stopped
