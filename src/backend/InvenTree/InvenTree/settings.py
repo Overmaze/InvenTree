@@ -367,6 +367,21 @@ MIDDLEWARE = CONFIG.get(
     ],
 )
 
+# In DEBUG mode, add support for django-silk
+# Ref: https://silk.readthedocs.io/en/latest/
+DJANGO_SILK_ENABLED = DEBUG and get_boolean_setting(  # pragma: no cover
+    'INVENTREE_DEBUG_SILK', 'debug_silk', False
+)
+
+if DJANGO_SILK_ENABLED:  # pragma: no cover
+    MIDDLEWARE.append('silk.middleware.SilkyMiddleware')
+    INSTALLED_APPS.append('silk')
+
+    # Optionally enable the silk python profiler
+    SILKY_PYTHON_PROFILER = SILKY_PYTHON_PROFILER_BINARY = get_boolean_setting(
+        'INVENTREE_DEBUG_SILK_PROFILING', 'debug_silk_profiling', False
+    )
+
 # In DEBUG mode, add support for django-querycount
 # Ref: https://github.com/bradmontgomery/django-querycount
 if DEBUG and get_boolean_setting(  # pragma: no cover
@@ -577,7 +592,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-        'rest_framework.permissions.DjangoModelPermissions',
+        'InvenTree.permissions.ModelPermission',
         'InvenTree.permissions.RolePermission',
         'InvenTree.permissions.InvenTreeTokenMatchesOASRequirements',
     ],
@@ -695,7 +710,7 @@ Ref: https://docs.djangoproject.com/en/3.2/ref/settings/#std:setting-OPTIONS
 # connecting to the database server (such as a replica failover) don't sit and
 # wait for possibly an hour or more, just tell the client something went wrong
 # and let the client retry when they want to.
-db_options = db_config.get('OPTIONS', db_config.get('options', None))
+db_options = db_config.get('OPTIONS', db_config.get('options'))
 
 if db_options is None:
     db_options = {}
@@ -1017,11 +1032,13 @@ EXCHANGE_BACKEND = 'InvenTree.exchange.InvenTreeExchange'
 # region email
 # Email configuration options
 EMAIL_BACKEND = 'InvenTree.backends.InvenTreeMailLoggingBackend'
+
 INTERNAL_EMAIL_BACKEND = get_setting(
     'INVENTREE_EMAIL_BACKEND',
     'email.backend',
     'django.core.mail.backends.smtp.EmailBackend',
 )
+
 # SMTP backend
 EMAIL_HOST = get_setting('INVENTREE_EMAIL_HOST', 'email.host', '')
 EMAIL_PORT = get_setting('INVENTREE_EMAIL_PORT', 'email.port', 25, typecast=int)
@@ -1428,9 +1445,7 @@ if SITE_URL:
     GLOBAL_SETTINGS_OVERRIDES['INVENTREE_BASE_URL'] = SITE_URL
 
 if len(GLOBAL_SETTINGS_OVERRIDES) > 0:
-    logger.info(
-        'INVE-I1: Global settings overrides: %s', str(GLOBAL_SETTINGS_OVERRIDES)
-    )
+    logger.info('INVE-I1: Global settings overrides: %s', GLOBAL_SETTINGS_OVERRIDES)
     for key in GLOBAL_SETTINGS_OVERRIDES:
         # Set the global setting
         logger.debug('- Override value for %s = ********', key)
@@ -1469,9 +1484,9 @@ FLAGS = {
 CUSTOM_FLAGS = get_setting('INVENTREE_FLAGS', 'flags', None, typecast=dict)
 if CUSTOM_FLAGS:  # pragma: no cover
     if not isinstance(CUSTOM_FLAGS, dict):
-        logger.error('Invalid custom flags, must be valid dict: %s', str(CUSTOM_FLAGS))
+        logger.error('Invalid custom flags, must be valid dict: %s', CUSTOM_FLAGS)
     else:
-        logger.info('Custom flags: %s', str(CUSTOM_FLAGS))
+        logger.info('Custom flags: %s', CUSTOM_FLAGS)
         FLAGS.update(CUSTOM_FLAGS)
 
 # Magic login django-sesame
