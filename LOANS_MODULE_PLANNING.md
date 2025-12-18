@@ -164,6 +164,7 @@ module_name/
 class LoanOrder(
     StatusCodeMixin,
     StateTransitionMixin,
+    InvenTree.models.InvenTreeParameterMixin,
     InvenTree.models.InvenTreeAttachmentMixin,
     InvenTree.models.InvenTreeBarcodeMixin,
     InvenTree.models.InvenTreeNotesMixin,
@@ -658,6 +659,7 @@ class LoanOrderList(
     SerializerContextMixin,
     DataExportViewMixin,
     OutputOptionsMixin,
+    ParameterListMixin,
     ListCreateAPI,
 ):
     """List and create API endpoint for LoanOrder model."""
@@ -666,7 +668,7 @@ class LoanOrderList(
     serializer_class = LoanOrderSerializer
     filterset_class = LoanOrderFilter
     
-    role_required = 'loan.view'
+    role_required = 'loan_order.view'
     
     filter_backends = SEARCH_ORDER_FILTER
     
@@ -685,6 +687,13 @@ class LoanOrderList(
     ]
     
     ordering = ['-creation_date']
+    
+    def get_queryset(self, *args, **kwargs):
+        """Return annotated queryset."""
+        queryset = super().get_queryset(*args, **kwargs)
+        queryset = LoanOrderSerializer.annotate_queryset(queryset)
+        queryset = InvenTree.models.InvenTreeParameterMixin.annotate_parameters(queryset)
+        return queryset
 ```
 
 #### LoanOrderDetail
@@ -741,6 +750,11 @@ class LoanOrderIssue(
 **File**: `src/backend/InvenTree/loan/serializers.py`
 
 ```python
+import common.filters
+from common import serializers as common_serializers
+from company import serializers as company_serializers
+from users import serializers as user_serializers
+
 class LoanOrderSerializer(
     DataImportExportSerializerMixin,
     FilterableSerializerMixin,
@@ -787,6 +801,7 @@ class LoanOrderSerializer(
             'returned_items',
             'overdue',
             'metadata',
+            'parameters',
         ]
         read_only_fields = [
             'reference',
@@ -799,19 +814,28 @@ class LoanOrderSerializer(
             'overdue',
         ]
     
-    borrower_detail = OwnerSerializer(source='borrower', read_only=True)
-    contact_detail = ContactSerializer(source='contact', read_only=True)
-    address_detail = AddressBriefSerializer(source='address', read_only=True)
-    responsible_detail = OwnerSerializer(source='responsible', read_only=True)
-    created_by_detail = UserSerializer(source='created_by', read_only=True)
-    issued_by_detail = UserSerializer(source='issued_by', read_only=True)
-    received_by_detail = UserSerializer(source='received_by', read_only=True)
-    project_code_detail = ProjectCodeSerializer(source='project_code', read_only=True)
+    borrower_detail = user_serializers.OwnerSerializer(source='borrower', read_only=True)
+    contact_detail = company_serializers.ContactSerializer(source='contact', read_only=True)
+    address_detail = company_serializers.AddressBriefSerializer(source='address', read_only=True)
+    responsible_detail = user_serializers.OwnerSerializer(source='responsible', read_only=True)
+    created_by_detail = user_serializers.UserSerializer(source='created_by', read_only=True)
+    issued_by_detail = user_serializers.UserSerializer(source='issued_by', read_only=True)
+    received_by_detail = user_serializers.UserSerializer(source='received_by', read_only=True)
+    project_code_detail = common_serializers.ProjectCodeSerializer(source='project_code', read_only=True)
+    parameters = common.filters.enable_parameters_filter()
     
     line_items = serializers.IntegerField(read_only=True)
     loaned_items = serializers.IntegerField(read_only=True)
     returned_items = serializers.IntegerField(read_only=True)
     overdue = serializers.BooleanField(read_only=True)
+    
+    @staticmethod
+    def annotate_queryset(queryset):
+        """Add extra information to the queryset."""
+        from django.db.models import Count
+        queryset = queryset.annotate(line_items=Count('lines'))
+        queryset = queryset.select_related('created_by', 'borrower', 'contact', 'address', 'responsible')
+        return queryset
 ```
 
 ---
@@ -2739,7 +2763,8 @@ class LoanOrder(...):
 - [ ] Create `LoanOrder` model with:
   - [ ] `REFERENCE_PATTERN_SETTING = 'LOAN_ORDER_REFERENCE_PATTERN'`
   - [ ] `validate_reference_field()` classmethod
-  - [ ] All required mixins and fields
+  - [ ] All required mixins including `InvenTreeParameterMixin` (for custom parameters support)
+  - [ ] All required fields
 - [ ] Create `LoanOrderLineItem` model
 - [ ] Create `LoanOrderTracking` model
 - [ ] Create `LoanOrderAllocation` model (see Section 12.1)
@@ -2792,7 +2817,8 @@ class LoanOrder(...):
   - [ ] `LoanOrderAllocationSerializer` (for stock allocation)
   - [ ] `LoanOrderAllocationItemSerializer` (for individual allocation items)
 - [ ] Create API views (`api.py`):
-  - [ ] `LoanOrderList`, `LoanOrderDetail`
+  - [ ] `LoanOrderList` (with `ParameterListMixin` for parameter filtering)
+  - [ ] `LoanOrderDetail`
   - [ ] `LoanOrderApprove` (superuser only)
   - [ ] `LoanOrderIssue`, `LoanOrderComplete`, `LoanOrderCancel`
   - [ ] `LoanOrderAllocate` (for allocating stock)
@@ -3131,6 +3157,21 @@ This planning document provides a comprehensive roadmap for implementing the Loa
 
 ## 18. Revision Notes
 
+### Version 1.4 - Upstream Changes Verification (2025-01-XX)
+
+**Corrections Applied After Upstream Update**:
+
+1. **InvenTreeParameterMixin Added**:
+   - ✅ Added `InvenTreeParameterMixin` to `LoanOrder` model (allows custom parameters support)
+   - ✅ Added `parameters` field to `LoanOrderSerializer`
+   - ✅ Added `ParameterListMixin` to `LoanOrderList` API view
+   - ✅ Added `annotate_queryset()` method to serializer for parameter prefetching
+   - ✅ Updated checklist to include parameter mixin requirement
+
+2. **API View Improvements**:
+   - ✅ Fixed `role_required` from `'loan.view'` to `'loan_order.view'` (correct ruleset name)
+   - ✅ Added `get_queryset()` method to `LoanOrderList` for proper annotation
+
 ### Version 1.3 - Final Verification Corrections (2025-01-XX)
 
 **Final Corrections Applied**:
@@ -3243,7 +3284,7 @@ This planning document provides a comprehensive roadmap for implementing the Loa
 
 ---
 
-*Document Version: 1.3*  
+*Document Version: 1.4*  
 *Last Updated: 2025-01-XX*  
-*Status: Planning Complete - All Critical Issues Resolved - Final Verification Complete - Ready for Implementation*
+*Status: Planning Complete - All Critical Issues Resolved - Upstream Changes Verified - Ready for Implementation*
 
