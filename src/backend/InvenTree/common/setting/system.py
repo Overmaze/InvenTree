@@ -827,6 +827,48 @@ SYSTEM_SETTINGS: dict[str, InvenTreeSettingsKeyType] = {
         'default': False,
         'validator': bool,
     },
+    'LOANORDER_ENABLED': {
+        'name': _('Enable Loan Orders'),
+        'description': _('Enable loan order functionality in the user interface'),
+        'validator': bool,
+        'default': False,
+    },
+    'LOANORDER_REFERENCE_PATTERN': {
+        'name': _('Loan Order Reference Pattern'),
+        'description': _('Required pattern for generating Loan Order reference field'),
+        'default': 'LO-{ref:04d}',
+        'validator': 'loan.validators.validate_loan_order_reference_pattern',
+    },
+    'LOANORDER_REQUIRE_RESPONSIBLE': {
+        'name': _('Require Responsible Owner'),
+        'description': _('A responsible owner must be assigned to each loan order'),
+        'default': False,
+        'validator': bool,
+    },
+    'LOANORDER_EDIT_COMPLETED_ORDERS': {
+        'name': _('Edit Completed Loan Orders'),
+        'description': _(
+            'Allow editing of loan orders after they have been completed'
+        ),
+        'default': False,
+        'validator': bool,
+    },
+    'LOANORDER_AUTO_COMPLETE': {
+        'name': _('Auto-Complete Loan Orders'),
+        'description': _(
+            'Automatically mark loan orders as returned when all items are returned'
+        ),
+        'default': True,
+        'validator': bool,
+    },
+    'LOANORDER_DUE_DATE_NOTIFICATION_DAYS': {
+        'name': _('Due Date Notification Days'),
+        'description': _(
+            'Number of days before due date to send notification reminders'
+        ),
+        'default': 7,
+        'validator': int,
+    },
     'SALESORDER_REFERENCE_PATTERN': {
         'name': _('Sales Order Reference Pattern'),
         'description': _('Required pattern for generating Sales Order reference field'),

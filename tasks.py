@@ -1125,6 +1125,8 @@ def import_fixtures(c):
         'supplier_part',
         # Order model
         'order',
+        # Loan model
+        'loan',
         # Part model
         'bom',
         'category',
@@ -1399,6 +1401,10 @@ def setup_test(
     # Load data
     info('Loading database records ...')
     import_records(c, filename=template_dir.joinpath('inventree_data.json'), clear=True)
+
+    # Load loan fixtures
+    info('Loading loan fixtures ...')
+    manage(c, 'loaddata loan', pty=True)
 
     # Copy media files
     src = template_dir.joinpath('media')

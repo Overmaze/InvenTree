@@ -2359,28 +2359,143 @@ def notify_overdue_loan(loan: LoanOrder):
 
 ### 12. `src/backend/InvenTree/loan/fixtures/loan.yaml`
 
+**Note**: This file contains comprehensive test fixtures with 5 loan orders in different statuses, 6 line items, and 2 pre-allocated stock items for testing.
+
 ```yaml
+# Loan module test fixtures
+# This file contains test data for the loan module
+
+# Note: These fixtures depend on:
+# - Company fixtures (for borrower_company)
+# - Part fixtures (for line items)
+# - Stock fixtures (for allocations)
+
+# Loan Orders
+
+# Loan Order 1 - PENDING status
 - model: loan.loanorder
   pk: 1
   fields:
-    reference: LOAN-0001
-    borrower: 1
-    description: Test loan order
-    due_date: 2025-12-31
-    status: 10
-    creation_date: 2025-01-01
-    created_by: 1
+    reference: 'LO-0001'
+    description: 'Loan of screws and capacitors to ACME'
+    borrower_company: 1  # ACME
+    status: 10  # PENDING
+    due_date: '2026-03-01'
 
+# Loan Order 2 - ISSUED status (ready for shipping/testing)
+- model: loan.loanorder
+  pk: 2
+  fields:
+    reference: 'LO-0002'
+    description: 'Electronics components loan to Appel Computers'
+    borrower_company: 2  # Appel Computers
+    status: 20  # ISSUED
+    due_date: '2026-03-15'
+
+# Loan Order 3 - ON_HOLD status
+- model: loan.loanorder
+  pk: 3
+  fields:
+    reference: 'LO-0003'
+    description: 'Widget loan on hold'
+    borrower_company: 4  # A customer
+    status: 25  # ON_HOLD
+    due_date: '2026-04-01'
+
+# Loan Order 4 - RETURNED status
+- model: loan.loanorder
+  pk: 4
+  fields:
+    reference: 'LO-0004'
+    description: 'Returned loan of resistors'
+    borrower_company: 5  # Another customer
+    status: 30  # RETURNED
+    due_date: '2026-02-01'
+    return_date: '2026-02-05'
+
+# Loan Order 5 - CANCELLED status
+- model: loan.loanorder
+  pk: 5
+  fields:
+    reference: 'LO-0005'
+    description: 'Cancelled loan order'
+    borrower_company: 1  # ACME
+    status: 50  # CANCELLED
+
+# Line Items for Loan Order 1 (PENDING)
 - model: loan.loanorderlineitem
   pk: 1
   fields:
     order: 1
-    part: 1
-    quantity: 5.00000
-    loaned_quantity: 0.00000
-    returned_quantity: 0.00000
-    status: 10
+    part: 1  # M2x4 LPHS screw
+    quantity: 1000
+    notes: '1000 screws for assembly project'
+
+- model: loan.loanorderlineitem
+  pk: 2
+  fields:
+    order: 1
+    part: 5  # C_22N_0805 capacitor
+    quantity: 100
+    notes: '100 capacitors for testing'
+
+# Line Items for Loan Order 2 (ISSUED - ready for shipping)
+- model: loan.loanorderlineitem
+  pk: 3
+  fields:
+    order: 2
+    part: 3  # R_2K2_0805 resistor
+    quantity: 500
+    notes: '500 resistors for prototyping'
+
+- model: loan.loanorderlineitem
+  pk: 4
+  fields:
+    order: 2
+    part: 5  # C_22N_0805 capacitor
+    quantity: 200
+    notes: '200 capacitors for development'
+
+# Line Items for Loan Order 3 (ON_HOLD)
+- model: loan.loanorderlineitem
+  pk: 5
+  fields:
+    order: 3
+    part: 25  # Widget
+    quantity: 3
+    notes: '3 widgets for evaluation'
+
+# Line Items for Loan Order 4 (RETURNED)
+- model: loan.loanorderlineitem
+  pk: 6
+  fields:
+    order: 4
+    part: 3  # R_2K2_0805 resistor
+    quantity: 100
+    notes: '100 resistors - already returned'
+
+# Allocations for Loan Order 2 (ISSUED - ready for shipping)
+# These are allocations ready to be shipped
+
+- model: loan.loanorderallocation
+  pk: 1
+  fields:
+    line: 3  # 500 resistors line item
+    item: 1234  # Stock item with 1234 resistors available
+    quantity: 500
+
+- model: loan.loanorderallocation
+  pk: 2
+  fields:
+    line: 4  # 200 capacitors line item
+    item: 11  # Stock item with 666 capacitors available
+    quantity: 200
 ```
+
+**Fixtures Integration:**
+- Automatically loaded with `invoke dev.setup-test -i`
+- Included in `invoke dev.import-fixtures`
+- Integrated in `tasks.py` fixture loading sequence
 
 ---
 
@@ -3493,6 +3608,62 @@ export const LoanOrderDetail = Loadable(
 - [ ] Test permissions
 - [ ] Frontend pages and tables
 - [ ] Frontend forms and modals
+
+### Setup Test Data & Fixtures
+
+The Loan module includes test fixtures that are automatically loaded when setting up a development or testing environment.
+
+#### Loading Test Data with Demo Dataset
+
+To load the complete demo dataset including Loan fixtures, use the following command:
+
+```bash
+docker compose run --rm inventree-server invoke dev.setup-test -i
+```
+
+This command will:
+1. Clone the InvenTree demo dataset from GitHub
+2. Load all base data (companies, parts, stock items, etc.)
+3. **Automatically load Loan fixtures** (5 loan orders with different statuses)
+4. Copy media files
+
+**Default credentials after setup:**
+- Username: `admin`
+- Password: `inventree`
+
+#### Loan Fixtures Content
+
+The loan fixtures (`src/backend/InvenTree/loan/fixtures/loan.yaml`) include:
+
+**Loan Orders:**
+- **LO-0001** (ID: 1) - PENDING status, borrower: ACME
+- **LO-0002** (ID: 2) - ISSUED status, borrower: Appel Computers (ready for shipping tests)
+- **LO-0003** (ID: 3) - ON_HOLD status, borrower: A customer
+- **LO-0004** (ID: 4) - RETURNED status, borrower: Another customer
+- **LO-0005** (ID: 5) - CANCELLED status, borrower: ACME
+
+**Line Items:**
+- 6 line items distributed across loan orders with various parts (screws, resistors, capacitors, widgets)
+
+**Allocations:**
+- 2 pre-allocated stock items for LO-0002 (ready for ship testing)
+
+#### Manual Fixture Loading
+
+To load only the Loan fixtures (without resetting the database):
+
+```bash
+docker exec inventree-inventree-dev-server-1 bash -c "cd /home/inventree/src/backend/InvenTree && python manage.py loaddata loan"
+```
+
+#### Integration with InvenTree
+
+The Loan fixtures are integrated into:
+- ✅ `invoke dev.import-fixtures` - Loads all fixtures including loan
+- ✅ `invoke dev.setup-test` - Automatically includes loan fixtures after loading demo dataset
+- ✅ `tasks.py` - Loan fixtures added to fixture loading sequence
+
+For more information about the demo dataset, see [InvenTree Demo Dataset Documentation](https://docs.inventree.org/en/latest/demo/).
 
 ---
 

@@ -20,6 +20,7 @@ import build.api
 import common.api
 import company.api
 import importer.api
+import loan.api
 import machine.api
 import order.api
 import part.api
@@ -57,6 +58,7 @@ apipatterns = [
     path('company/', include(company.api.company_api_urls)),
     path('importer/', include(importer.api.importer_api_urls)),
     path('label/', include(report.api.label_api_urls)),
+    path('loan/', include(loan.api.loan_order_api_urls)),
     path('machine/', include(machine.api.machine_api_urls)),
     path('order/', include(order.api.order_api_urls)),
     path('part/', include(part.api.part_api_urls)),
