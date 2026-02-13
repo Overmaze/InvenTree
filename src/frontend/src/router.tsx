@@ -88,6 +88,14 @@ export const ReturnOrderDetail = Loadable(
   lazy(() => import('./pages/sales/ReturnOrderDetail'))
 );
 
+export const LoanIndex = Loadable(
+  lazy(() => import('./pages/loan/LoanIndex'))
+);
+
+export const LoanOrderDetail = Loadable(
+  lazy(() => import('./pages/loan/LoanOrderDetail'))
+);
+
 export const Scan = Loadable(lazy(() => import('./pages/Index/Scan')));
 
 export const ErrorPage = Loadable(lazy(() => import('./pages/ErrorPage')));
@@ -195,6 +203,11 @@ export const routes = (
         <Route path='shipment/:id/*' element={<SalesOrderShipmentDetail />} />
         <Route path='return-order/:id/*' element={<ReturnOrderDetail />} />
         <Route path='customer/:id/*' element={<CustomerDetail />} />
+      </Route>
+      <Route path='loan/'>
+        <Route index element={<Navigate to='index/' />} />
+        <Route path='index/*' element={<LoanIndex />} />
+        <Route path='loan-order/:id/*' element={<LoanOrderDetail />} />
       </Route>
       <Route path='core/'>
         <Route index element={<Navigate to='index/' />} />

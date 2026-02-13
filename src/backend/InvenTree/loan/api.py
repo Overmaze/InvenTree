@@ -481,6 +481,34 @@ class LoanOrderShipItems(LoanOrderContextMixin, CreateAPI):
         }, status=status.HTTP_200_OK)
 
 
+class LoanOrderShipAll(LoanOrderContextMixin, CreateAPI):
+    """API endpoint to auto-allocate and ship all pending line items."""
+
+    queryset = models.LoanOrder.objects.all()
+    serializer_class = serializers.LoanOrderShipAllSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Ship all pending items and return the updated order."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        allocations = serializer.save()
+
+        # Refresh the order from database
+        order = self.get_object()
+        order.refresh_from_db()
+
+        order_serializer = serializers.LoanOrderSerializer(
+            order, context=self.get_serializer_context()
+        )
+
+        return Response({
+            'order': order_serializer.data,
+            'allocations': serializers.LoanOrderAllocationSerializer(
+                allocations, many=True
+            ).data,
+        }, status=status.HTTP_200_OK)
+
+
 class LoanOrderReturnItems(LoanOrderContextMixin, CreateAPI):
     """API endpoint to return items from loan."""
 
@@ -720,6 +748,19 @@ class LoanOrderAllocationMixin(SerializerContextMixin):
     queryset = models.LoanOrderAllocation.objects.all()
     serializer_class = serializers.LoanOrderAllocationSerializer
 
+    def get_serializer(self, *args, **kwargs):
+        """Return serializer with detail flags from query params."""
+        try:
+            params = self.request.query_params
+            kwargs['item_detail'] = str2bool(params.get('item_detail', False))
+            kwargs['part_detail'] = str2bool(params.get('part_detail', False))
+            kwargs['line_detail'] = str2bool(params.get('line_detail', False))
+            kwargs['order_detail'] = str2bool(params.get('order_detail', False))
+        except AttributeError:
+            pass
+
+        return super().get_serializer(*args, **kwargs)
+
     def get_queryset(self, *args, **kwargs):
         """Return annotated queryset for this endpoint."""
         queryset = super().get_queryset(*args, **kwargs)
@@ -760,7 +801,7 @@ class LoanOrderAllocationDetail(LoanOrderAllocationMixin, RetrieveUpdateDestroyA
 
 # Extra Line endpoints
 
-class LoanOrderExtraLineList(DataExportViewMixin, OutputOptionsMixin, ListCreateAPI):
+class LoanOrderExtraLineList(DataExportViewMixin, ListCreateAPI):
     """API endpoint for accessing a list of LoanOrderExtraLine objects."""
 
     queryset = models.LoanOrderExtraLine.objects.all()
@@ -850,6 +891,7 @@ loan_order_api_urls = [
             path('convert-items/', LoanOrderConvertItems.as_view(), name='api-loan-order-convert-items'),
             path('sell-returned-items/', LoanOrderSellReturnedItems.as_view(), name='api-loan-order-sell-returned-items'),
             path('ship/', LoanOrderShipItems.as_view(), name='api-loan-order-ship'),
+            path('ship-all/', LoanOrderShipAll.as_view(), name='api-loan-order-ship-all'),
             path('return-items/', LoanOrderReturnItems.as_view(), name='api-loan-order-return-items'),
             path('metadata/', MetadataView.as_view(model=models.LoanOrder), name='api-loan-order-metadata'),
             path('', LoanOrderDetail.as_view(), name='api-loan-order-detail'),

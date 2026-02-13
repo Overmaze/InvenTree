@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models, transaction
-from django.db.models import BooleanField, Case, ExpressionWrapper, F, Q, Value, When
+from django.db.models import BooleanField, Case, DecimalField, ExpressionWrapper, F, Q, Value, When
 from django.db.models.functions import Coalesce, Greatest
 from django.utils.translation import gettext_lazy as _
 
@@ -109,6 +109,19 @@ class AbstractLoanOrderSerializer(
         read_only=True, allow_null=True, label=_('Completed Lines')
     )
 
+    # Aggregated quantity totals across all line items
+    total_quantity = InvenTreeDecimalField(
+        read_only=True, allow_null=True, label=_('Total Quantity')
+    )
+
+    total_shipped = InvenTreeDecimalField(
+        read_only=True, allow_null=True, label=_('Total Shipped')
+    )
+
+    total_returned = InvenTreeDecimalField(
+        read_only=True, allow_null=True, label=_('Total Returned')
+    )
+
     # Human-readable status text
     status_text = serializers.CharField(source='get_status_display', read_only=True)
 
@@ -177,6 +190,26 @@ class AbstractLoanOrderSerializer(
     def annotate_queryset(queryset):
         """Add extra information to the queryset."""
         queryset = queryset.annotate(line_items=SubqueryCount('lines'))
+
+        # Aggregate shipped/returned totals across all line items
+        queryset = queryset.annotate(
+            total_quantity=Coalesce(
+                SubquerySum('lines__quantity'),
+                Decimal(0),
+                output_field=DecimalField(),
+            ),
+            total_shipped=Coalesce(
+                SubquerySum('lines__shipped'),
+                Decimal(0),
+                output_field=DecimalField(),
+            ),
+            total_returned=Coalesce(
+                SubquerySum('lines__returned'),
+                Decimal(0),
+                output_field=DecimalField(),
+            ),
+        )
+
         queryset = queryset.select_related('created_by')
         return queryset
 
@@ -210,6 +243,9 @@ class AbstractLoanOrderSerializer(
             'barcode_hash',
             'line_items',
             'completed_lines',
+            'total_quantity',
+            'total_shipped',
+            'total_returned',
             'parameters',
             'duplicate',
             *extra_fields,
@@ -491,10 +527,10 @@ class LoanOrderLineItemSerializer(
                     F('total_stock')
                     - F('allocated_to_sales_orders')
                     - F('allocated_to_build_orders'),
-                    output_field=models.DecimalField(),
+                    output_field=DecimalField(),
                 ),
                 0,
-                output_field=models.DecimalField(),
+                output_field=DecimalField(),
             )
         )
 
@@ -502,7 +538,7 @@ class LoanOrderLineItemSerializer(
         queryset = queryset.annotate(
             on_loan=ExpressionWrapper(
                 F('shipped') - F('returned'),
-                output_field=models.DecimalField(),
+                output_field=DecimalField(),
             )
         )
 
@@ -511,7 +547,7 @@ class LoanOrderLineItemSerializer(
             allocated=Coalesce(
                 SubquerySum('allocations__quantity'),
                 Decimal(0),
-                output_field=models.DecimalField(),
+                output_field=DecimalField(),
             )
         )
 
@@ -681,6 +717,23 @@ class LoanOrderShipItemsSerializer(serializers.Serializer):
         items = self.validated_data['items']
 
         return order.ship_line_items(items, user)
+
+
+class LoanOrderShipAllSerializer(serializers.Serializer):
+    """Serializer for auto-allocating and shipping all pending line items."""
+
+    class Meta:
+        """Metaclass options."""
+
+        fields = []
+
+    @transaction.atomic
+    def save(self):
+        """Auto-allocate stock and ship all pending items."""
+        order = self.context['order']
+        user = self.context['request'].user
+
+        return order.ship_all_line_items(user)
 
 
 class LoanOrderReturnItemsSerializer(serializers.Serializer):

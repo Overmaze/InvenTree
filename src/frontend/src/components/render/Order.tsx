@@ -123,3 +123,65 @@ export function RenderSalesOrderShipment({
     />
   );
 }
+
+/**
+ * Inline rendering of a single LoanOrder instance
+ */
+export function RenderLoanOrder(
+  props: Readonly<InstanceRenderInterface>
+): ReactNode {
+  const { instance } = props;
+  const borrower = instance?.borrower_company_detail || {};
+
+  return (
+    <RenderInlineModel
+      {...props}
+      primary={instance.reference}
+      secondary={instance.description}
+      suffix={StatusRenderer({
+        status: instance.status_custom_key,
+        type: ModelType.loanorder
+      })}
+      image={borrower.thumbnail || borrower.image}
+      url={
+        props.link ? getDetailUrl(ModelType.loanorder, instance.pk) : undefined
+      }
+    />
+  );
+}
+
+/**
+ * Inline rendering of a single LoanOrderLineItem instance
+ */
+export function RenderLoanOrderLineItem(
+  props: Readonly<InstanceRenderInterface>
+): ReactNode {
+  const { instance } = props;
+
+  return (
+    <RenderInlineModel
+      {...props}
+      primary={instance.reference}
+      suffix={StatusRenderer({
+        status: instance.status_custom_key,
+        type: ModelType.loanorderlineitem
+      })}
+    />
+  );
+}
+
+/**
+ * Inline rendering of a single LoanOrderAllocation instance
+ */
+export function RenderLoanOrderAllocation(
+  props: Readonly<InstanceRenderInterface>
+): ReactNode {
+  const { instance } = props;
+
+  return (
+    <RenderInlineModel
+      {...props}
+      primary={instance.item || instance.pk}
+    />
+  );
+}

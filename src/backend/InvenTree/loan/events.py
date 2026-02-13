@@ -10,6 +10,7 @@ class LoanOrderEvents(BaseEventEnum):
     CREATED = 'loanorder.created'
     APPROVED = 'loanorder.approved'
     ISSUED = 'loanorder.issued'
+    SHIPPED = 'loanorder.shipped'
     RETURNED = 'loanorder.returned'
     PARTIAL_RETURN = 'loanorder.partial_return'
     CONVERTED = 'loanorder.converted_to_sale'

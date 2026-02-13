@@ -32,6 +32,7 @@ http://localhost:8000/web/sales/            # Sales Orders
 http://localhost:8000/web/purchasing/       # Purchase Orders
 http://localhost:8000/web/part/             # Parts Management
 http://localhost:8000/web/stock/            # Stock Management
+http://localhost:8000/web/loan/            # Loan Management
 
 # Django Admin
 http://localhost:8000/admin/                # Admin dashboard

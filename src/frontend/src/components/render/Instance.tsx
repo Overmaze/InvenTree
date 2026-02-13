@@ -42,6 +42,9 @@ import {
   RenderSelectionList
 } from './Generic';
 import {
+  RenderLoanOrder,
+  RenderLoanOrderAllocation,
+  RenderLoanOrderLineItem,
   RenderPurchaseOrder,
   RenderReturnOrder,
   RenderReturnOrderLineItem,
@@ -82,6 +85,9 @@ export const RendererLookup: ModelRendererDict = {
   [ModelType.returnorderlineitem]: RenderReturnOrderLineItem,
   [ModelType.salesorder]: RenderSalesOrder,
   [ModelType.salesordershipment]: RenderSalesOrderShipment,
+  [ModelType.loanorder]: RenderLoanOrder,
+  [ModelType.loanorderlineitem]: RenderLoanOrderLineItem,
+  [ModelType.loanorderallocation]: RenderLoanOrderAllocation,
   [ModelType.stocklocation]: RenderStockLocation,
   [ModelType.stocklocationtype]: RenderStockLocationType,
   [ModelType.stockitem]: RenderStockItem,

@@ -130,6 +130,16 @@ export function getActions(navigate: NavigateFunction) {
         leftSection: <IconLink size='1.2rem' />
       });
 
+    user?.hasViewRole(UserRoles.loan_order) &&
+      _actions.push({
+        id: 'loan-orders',
+        label: t`Loans`,
+        description: t`Go to Loans`,
+        onClick: () =>
+          navigate(ModelInformationDict['loanorder'].url_overview!),
+        leftSection: <IconLink size='1.2rem' />
+      });
+
     user?.hasViewRole(UserRoles.build) &&
       _actions.push({
         id: 'builds',

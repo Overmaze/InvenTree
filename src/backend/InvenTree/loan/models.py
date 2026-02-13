@@ -67,6 +67,14 @@ ALLOWED_TRANSITIONS = {
         LoanOrderStatus.CANCELLED.value,
     ],
     LoanOrderStatus.ISSUED.value: [
+        LoanOrderStatus.SHIPPED.value,  # Auto-transition when items are shipped
+        LoanOrderStatus.ON_HOLD.value,
+        LoanOrderStatus.PARTIAL_RETURN.value,
+        LoanOrderStatus.RETURNED.value,
+        LoanOrderStatus.CONVERTED_TO_SALE.value,
+        LoanOrderStatus.WRITTEN_OFF.value,
+    ],
+    LoanOrderStatus.SHIPPED.value: [
         LoanOrderStatus.ON_HOLD.value,
         LoanOrderStatus.PARTIAL_RETURN.value,
         LoanOrderStatus.RETURNED.value,
@@ -77,6 +85,7 @@ ALLOWED_TRANSITIONS = {
         LoanOrderStatus.PENDING.value,
         LoanOrderStatus.APPROVED.value,
         LoanOrderStatus.ISSUED.value,
+        LoanOrderStatus.SHIPPED.value,  # Resume to shipped if items were previously shipped
         LoanOrderStatus.CANCELLED.value,
     ],
     LoanOrderStatus.PARTIAL_RETURN.value: [
@@ -330,11 +339,23 @@ class LoanOrder(
                     'address': _('Address does not match selected company')
                 })
 
+        # Issue date should not be before creation date
+        if self.issue_date and self.creation_date and self.issue_date < self.creation_date:
+            raise ValidationError({
+                'issue_date': _('Issue date cannot be before creation date'),
+            })
+
         # Due date should be after issue date
         if self.issue_date and self.due_date and self.issue_date > self.due_date:
             raise ValidationError({
                 'due_date': _('Due date must be after issue date'),
                 'issue_date': _('Issue date must be before due date'),
+            })
+
+        # Due date should be after creation date
+        if self.due_date and self.creation_date and self.due_date < self.creation_date:
+            raise ValidationError({
+                'due_date': _('Due date cannot be before creation date'),
             })
 
     def report_context(self) -> LoanOrderReportContext:
@@ -579,6 +600,11 @@ class LoanOrder(
         return self.status == LoanOrderStatus.ISSUED.value
 
     @property
+    def is_shipped(self) -> bool:
+        """Return True if the LoanOrder has items shipped."""
+        return self.status == LoanOrderStatus.SHIPPED.value
+
+    @property
     def line_count(self) -> int:
         """Return the total number of line items."""
         return self.lines.count()
@@ -643,22 +669,32 @@ class LoanOrder(
         return self.status in [
             LoanOrderStatus.PENDING.value,
             LoanOrderStatus.ISSUED.value,
+            LoanOrderStatus.SHIPPED.value,
         ]
 
     @property
     def can_return(self) -> bool:
         """Check if this loan can be marked as returned."""
-        return self.status == LoanOrderStatus.ISSUED.value
+        return self.status in [
+            LoanOrderStatus.ISSUED.value,
+            LoanOrderStatus.SHIPPED.value,
+        ]
 
     @property
     def can_convert_to_sale(self) -> bool:
         """Check if this loan can be converted to a sale."""
-        return self.status == LoanOrderStatus.ISSUED.value
+        return self.status in [
+            LoanOrderStatus.ISSUED.value,
+            LoanOrderStatus.SHIPPED.value,
+        ]
 
     @property
     def can_write_off(self) -> bool:
         """Check if this loan can be written off."""
-        return self.status == LoanOrderStatus.ISSUED.value
+        return self.status in [
+            LoanOrderStatus.ISSUED.value,
+            LoanOrderStatus.SHIPPED.value,
+        ]
 
     def _validate_transition(self, target_status: int) -> bool:
         """Validate that a status transition is allowed."""
@@ -682,10 +718,17 @@ class LoanOrder(
             )
 
     def _action_issue(self, *args, **kwargs):
-        """Mark the LoanOrder as ISSUED."""
+        """Mark the LoanOrder as ISSUED (or SHIPPED if items were already shipped)."""
         if self.can_issue:
-            self.status = LoanOrderStatus.ISSUED.value
-            self.issue_date = InvenTree.helpers.current_date()
+            # If resuming from ON_HOLD with previously shipped items, go to SHIPPED
+            has_shipped = self.lines.filter(
+                status=LoanOrderLineStatus.SHIPPED.value
+            ).exists()
+            if has_shipped:
+                self.status = LoanOrderStatus.SHIPPED.value
+            else:
+                self.status = LoanOrderStatus.ISSUED.value
+            self.issue_date = self.issue_date or InvenTree.helpers.current_date()
             self.save()
 
             trigger_event(LoanOrderEvents.ISSUED, id=self.pk)
@@ -822,9 +865,15 @@ class LoanOrder(
             items: List of dicts with line_item, stock_item, quantity
             user: The user performing the action
         """
-        if self.status != LoanOrderStatus.ISSUED.value:
-            # Auto-issue if pending
-            if self.status == LoanOrderStatus.PENDING.value:
+        if self.status not in [
+            LoanOrderStatus.ISSUED.value,
+            LoanOrderStatus.SHIPPED.value,
+        ]:
+            # Auto-issue if pending or approved
+            if self.status in [
+                LoanOrderStatus.PENDING.value,
+                LoanOrderStatus.APPROVED.value,
+            ]:
                 self.issue_order()
             else:
                 raise ValidationError(_('Cannot ship items for this loan status'))
@@ -879,6 +928,15 @@ class LoanOrder(
                 },
             )
 
+        # Auto-transition order to SHIPPED when any line item is fully shipped
+        if self.status == LoanOrderStatus.ISSUED.value:
+            if self.lines.filter(
+                status=LoanOrderLineStatus.SHIPPED.value
+            ).exists():
+                self.status = LoanOrderStatus.SHIPPED.value
+                self.save()
+                trigger_event(LoanOrderEvents.SHIPPED, id=self.pk)
+
         trigger_event(
             LoanOrderEvents.LINE_ITEM_SHIPPED,
             order_id=self.pk,
@@ -888,6 +946,54 @@ class LoanOrder(
         return LoanOrderAllocation.objects.filter(
             pk__in=[a.pk for a in shipped_allocations]
         )
+
+    @transaction.atomic
+    def ship_all_line_items(self, user: User, **kwargs) -> QuerySet:
+        """Auto-allocate stock and ship all pending line items.
+
+        For each line item with unshipped quantity, finds the first available
+        stock item with sufficient unallocated quantity and ships it.
+
+        Arguments:
+            user: The user performing the action
+
+        Raises:
+            ValidationError: If no pending items or insufficient stock
+        """
+        from stock.models import StockItem
+
+        pending = self.lines.filter(shipped__lt=F('quantity'))
+        if not pending.exists():
+            raise ValidationError(_('No pending items to ship'))
+
+        items_to_ship = []
+        for line in pending:
+            remaining = line.quantity - line.shipped
+            # Find stock item with sufficient available quantity
+            stock_items = StockItem.objects.filter(
+                part=line.part,
+                quantity__gt=0,
+            ).order_by('-quantity')
+
+            suitable = None
+            for si in stock_items:
+                if si.unallocated_quantity() >= remaining:
+                    suitable = si
+                    break
+
+            if suitable is None:
+                raise ValidationError(
+                    _('No suitable stock for %(part)s (need %(qty)s)')
+                    % {'part': line.part.name, 'qty': remaining}
+                )
+
+            items_to_ship.append({
+                'line_item': line,
+                'stock_item': suitable,
+                'quantity': remaining,
+            })
+
+        return self.ship_line_items(items_to_ship, user, **kwargs)
 
     @transaction.atomic
     def return_line_items(self, items: list, user: User, location=None, **kwargs) -> list:

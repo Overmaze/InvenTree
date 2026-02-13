@@ -11,6 +11,7 @@ export enum UserRoles {
   purchase_order = 'purchase_order',
   return_order = 'return_order',
   sales_order = 'sales_order',
+  loan_order = 'loan_order',
   stock = 'stock',
   stock_location = 'stock_location'
 }
@@ -41,6 +42,8 @@ export function userRoleLabel(role: UserRoles): string {
       return t`Return Orders`;
     case UserRoles.sales_order:
       return t`Sales Orders`;
+    case UserRoles.loan_order:
+      return t`Loans`;
     case UserRoles.stock:
       return t`Stock Items`;
     case UserRoles.stock_location:

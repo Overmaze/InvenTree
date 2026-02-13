@@ -21,6 +21,9 @@ class LoanOrderStatus(StatusCode):
     # Order has been issued, items are out on loan
     ISSUED = 20, _('Issued'), ColorEnum.primary
 
+    # Items have been shipped out to borrower
+    SHIPPED = 22, _('Shipped'), ColorEnum.info
+
     # Order is on hold
     ON_HOLD = 25, _('On Hold'), ColorEnum.warning
 
@@ -48,6 +51,7 @@ class LoanOrderStatusGroups:
         LoanOrderStatus.PENDING.value,
         LoanOrderStatus.APPROVED.value,
         LoanOrderStatus.ISSUED.value,
+        LoanOrderStatus.SHIPPED.value,
         LoanOrderStatus.ON_HOLD.value,
         LoanOrderStatus.PARTIAL_RETURN.value,
     ]
