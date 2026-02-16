@@ -20,6 +20,7 @@ class LoanOrderEvents(BaseEventEnum):
 
     # Special events
     OVERDUE = 'loanorder.overdue'  # Triggered by scheduled task, not status change
+    DUE_SOON = 'loanorder.due_soon'  # Triggered when due date is approaching
 
     # Line item events
     LINE_ITEM_SHIPPED = 'loanorder.line_item_shipped'

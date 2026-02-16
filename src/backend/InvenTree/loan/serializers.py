@@ -221,6 +221,7 @@ class AbstractLoanOrderSerializer(
             'created_by',
             'creation_date',
             'issue_date',
+            'ship_date',
             'due_date',
             'return_date',
             'description',
@@ -273,7 +274,7 @@ class LoanOrderSerializer(
             'total_price',
             'order_currency',
         ])
-        read_only_fields = ['status', 'creation_date', 'return_date']
+        read_only_fields = ['status', 'creation_date', 'ship_date', 'return_date']
         extra_kwargs = {'order_currency': {'required': False}}
 
     def skip_create_fields(self):
@@ -590,6 +591,45 @@ class LoanOrderLineItemSerializer(
         ),
         False,
     )
+
+    def validate_quantity(self, value):
+        """Validate quantity is positive."""
+        if value is not None and value <= 0:
+            raise ValidationError(_('Quantity must be greater than zero'))
+        return value
+
+    def validate_part(self, value):
+        """Validate part is active and salable."""
+        if value:
+            if not value.active:
+                raise ValidationError(_('Part is not active'))
+            if not value.salable:
+                raise ValidationError(_('Only salable parts can be added to a loan order'))
+        return value
+
+    def validate(self, data):
+        """Cross-field validation."""
+        data = super().validate(data)
+
+        order = data.get('order', getattr(self.instance, 'order', None))
+
+        # Cannot add/edit line items on completed/cancelled orders
+        if order and order.status in (
+            LoanOrderStatusGroups.COMPLETE + LoanOrderStatusGroups.FAILED
+        ):
+            raise ValidationError({
+                'order': _('Cannot modify line items for a completed or cancelled order'),
+            })
+
+        # Line item target_date cannot exceed the order's due_date
+        target_date = data.get('target_date', getattr(self.instance, 'target_date', None))
+        if order and target_date and order.due_date:
+            if target_date > order.due_date:
+                raise ValidationError({
+                    'target_date': _('Target date cannot be after the order due date'),
+                })
+
+        return data
 
 
 class LoanOrderAllocationSerializer(InvenTreeModelSerializer):

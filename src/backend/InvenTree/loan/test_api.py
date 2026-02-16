@@ -181,6 +181,12 @@ class LoanOrderStateTransitionTest(LoanOrderTestCase):
             reference='LO-STATE',
             borrower_company=self.customer,
         )
+        # Add a line item (required for issue/approve/return)
+        self.line_item = LoanOrderLineItem.objects.create(
+            order=self.loan_order,
+            part=self.part,
+            quantity=5,
+        )
 
     def test_issue_loan_order(self):
         """Test issuing a loan order."""
@@ -212,8 +218,12 @@ class LoanOrderStateTransitionTest(LoanOrderTestCase):
 
     def test_return_loan_order(self):
         """Test marking a loan order as returned."""
-        # First issue the order
+        # Issue the order and ship items (return requires shipped items)
         self.loan_order.issue_order()
+        self.loan_order.ship_line_items(
+            [{'line_item': self.line_item, 'stock_item': self.stock_item, 'quantity': 5}],
+            user=self.user,
+        )
 
         url = reverse('api-loan-order-return', kwargs={'pk': self.loan_order.pk})
         response = self.post(url, {}, expected_code=200)
@@ -224,14 +234,27 @@ class LoanOrderStateTransitionTest(LoanOrderTestCase):
 
     def test_convert_loan_order(self):
         """Test converting a loan order to a sale."""
-        # First issue the order
+        # Issue the order and ship items (convert requires shipped items)
         self.loan_order.issue_order()
+        self.loan_order.ship_line_items(
+            [{'line_item': self.line_item, 'stock_item': self.stock_item, 'quantity': 5}],
+            user=self.user,
+        )
 
         url = reverse('api-loan-order-convert', kwargs={'pk': self.loan_order.pk})
         response = self.post(url, {}, expected_code=200)
 
         self.loan_order.refresh_from_db()
         self.assertEqual(self.loan_order.status, LoanOrderStatus.CONVERTED_TO_SALE.value)
+
+    def test_issue_empty_order(self):
+        """Test that issuing an order with no line items fails."""
+        empty_order = LoanOrder.objects.create(
+            reference='LO-EMPTY',
+            borrower_company=self.customer,
+        )
+        url = reverse('api-loan-order-issue', kwargs={'pk': empty_order.pk})
+        response = self.post(url, {}, expected_code=400)
 
     def test_invalid_transition(self):
         """Test that invalid state transitions fail."""
@@ -779,11 +802,26 @@ class LoanOrderPermissionTest(InvenTreeAPITestCase):
             is_customer=True,
         )
 
+        # Create a part for line items
+        self.part = Part.objects.create(
+            name='Perm Test Part',
+            description='Part for permission tests',
+            salable=True,
+            active=True,
+        )
+
         # Create loan order
         self.order = LoanOrder.objects.create(
             reference='LO-PERM-TEST',
             borrower_company=self.customer,
             status=LoanOrderStatus.PENDING.value,
+        )
+
+        # Add a line item (required for approve/issue)
+        LoanOrderLineItem.objects.create(
+            order=self.order,
+            part=self.part,
+            quantity=5,
         )
 
     @unittest.skip("Permission testing with InvenTreeAPITestCase needs special setup")

@@ -1,6 +1,8 @@
 import { t } from '@lingui/core/macro';
+import { Alert } from '@mantine/core';
 import {
   IconAddressBook,
+  IconAlertTriangle,
   IconCalendar,
   IconCoins,
   IconUser,
@@ -10,12 +12,14 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ApiEndpoints } from '@lib/enums/ApiEndpoints';
 import { ModelType } from '@lib/enums/ModelType';
+import { apiUrl } from '@lib/functions/Api';
 import { toNumber } from '@lib/functions/Conversion';
 import type {
   ApiFormAdjustFilterType,
   ApiFormFieldSet,
   ApiFormFieldType
 } from '@lib/types/Forms';
+import { api } from '../App';
 import { useGlobalSettingsState } from '../states/SettingsStates';
 
 export function useLoanOrderFields({
@@ -102,6 +106,8 @@ export function useLoanOrderLineItemFields({
   const [partCurrency, setPartCurrency] = useState<string>(currency ?? '');
   const [part, setPart] = useState<any>({});
   const [quantity, setQuantity] = useState<string>('1');
+  const [duplicateWarning, setDuplicateWarning] = useState<string>('');
+  const [stockWarning, setStockWarning] = useState<string>('');
 
   // Update suggested loan price when part, quantity, or currency changes
   useEffect(() => {
@@ -132,6 +138,54 @@ export function useLoanOrderLineItemFields({
     }
   }, [part, quantity, partCurrency, create]);
 
+  // Check for duplicate part in the same order
+  useEffect(() => {
+    if (!create || !part?.pk || !orderId) {
+      setDuplicateWarning('');
+      return;
+    }
+
+    api
+      .get(apiUrl(ApiEndpoints.loan_order_line_list), {
+        params: { order: orderId, part: part.pk }
+      })
+      .then((response) => {
+        if (response.data?.results?.length > 0 || (Array.isArray(response.data) && response.data.length > 0)) {
+          setDuplicateWarning(
+            t`This part already exists on another line of this order. Consider updating the existing line instead.`
+          );
+        } else {
+          setDuplicateWarning('');
+        }
+      })
+      .catch(() => {
+        setDuplicateWarning('');
+      });
+  }, [part?.pk, orderId, create]);
+
+  // Check stock availability when part or quantity changes
+  useEffect(() => {
+    if (!create || !part?.pk) {
+      setStockWarning('');
+      return;
+    }
+
+    const qty = toNumber(quantity, null);
+    if (qty == null || qty <= 0) {
+      setStockWarning('');
+      return;
+    }
+
+    const available = part.unallocated_stock ?? part.in_stock ?? 0;
+    if (qty > available) {
+      setStockWarning(
+        t`Requested quantity (${qty}) exceeds available stock (${available}). You can still add it, but shipping will require sufficient stock.`
+      );
+    } else {
+      setStockWarning('');
+    }
+  }, [part, quantity, create]);
+
   return useMemo(() => {
     const fields: ApiFormFieldSet = {
       order: {
@@ -147,13 +201,31 @@ export function useLoanOrderLineItemFields({
           salable: true,
           price_breaks: true
         },
-        onValueChange: (_: any, record?: any) => setPart(record)
+        onValueChange: (_: any, record?: any) => setPart(record),
+        postFieldContent: duplicateWarning ? (
+          <Alert
+            color='orange'
+            radius='sm'
+            icon={<IconAlertTriangle size={16} />}
+          >
+            {duplicateWarning}
+          </Alert>
+        ) : undefined
       },
       reference: {},
       quantity: {
         onValueChange: (value) => {
           setQuantity(value);
-        }
+        },
+        postFieldContent: stockWarning ? (
+          <Alert
+            color='orange'
+            radius='sm'
+            icon={<IconAlertTriangle size={16} />}
+          >
+            {stockWarning}
+          </Alert>
+        ) : undefined
       },
       loan_price: {
         placeholder: loanPrice,
@@ -173,7 +245,7 @@ export function useLoanOrderLineItemFields({
     };
 
     return fields;
-  }, [loanPrice, partCurrency, orderId, create]);
+  }, [loanPrice, partCurrency, orderId, create, duplicateWarning, stockWarning]);
 }
 
 export function useLoanOrderAllocationFields({

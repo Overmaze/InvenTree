@@ -358,6 +358,18 @@ class LoanOrder(
                 'due_date': _('Due date cannot be before creation date'),
             })
 
+        # Return date should be after issue date
+        if self.return_date and self.issue_date and self.return_date < self.issue_date:
+            raise ValidationError({
+                'return_date': _('Return date cannot be before issue date'),
+            })
+
+        # Ship date should be after issue date
+        if self.ship_date and self.issue_date and self.ship_date < self.issue_date:
+            raise ValidationError({
+                'ship_date': _('Ship date cannot be before issue date'),
+            })
+
     def report_context(self) -> LoanOrderReportContext:
         """Generate context data for the reporting interface."""
         return {
@@ -553,6 +565,13 @@ class LoanOrder(
         help_text=_('Expected return date for loaned items'),
     )
 
+    ship_date = models.DateField(
+        blank=True,
+        null=True,
+        verbose_name=_('Ship Date'),
+        help_text=_('Date items were shipped to borrower'),
+    )
+
     return_date = models.DateField(
         blank=True,
         null=True,
@@ -674,27 +693,49 @@ class LoanOrder(
 
     @property
     def can_return(self) -> bool:
-        """Check if this loan can be marked as returned."""
-        return self.status in [
+        """Check if this loan can be marked as returned.
+
+        Requires that at least some items have been shipped.
+        """
+        if self.status not in [
             LoanOrderStatus.ISSUED.value,
             LoanOrderStatus.SHIPPED.value,
-        ]
+            LoanOrderStatus.PARTIAL_RETURN.value,
+        ]:
+            return False
+
+        # Must have at least some shipped items to return
+        return self.lines.filter(shipped__gt=0).exists()
 
     @property
     def can_convert_to_sale(self) -> bool:
-        """Check if this loan can be converted to a sale."""
-        return self.status in [
+        """Check if this loan can be converted to a sale.
+
+        Requires that at least some items have been shipped.
+        """
+        if self.status not in [
             LoanOrderStatus.ISSUED.value,
             LoanOrderStatus.SHIPPED.value,
-        ]
+            LoanOrderStatus.PARTIAL_RETURN.value,
+        ]:
+            return False
+
+        return self.lines.filter(shipped__gt=0).exists()
 
     @property
     def can_write_off(self) -> bool:
-        """Check if this loan can be written off."""
-        return self.status in [
+        """Check if this loan can be written off.
+
+        Requires that at least some items have been shipped.
+        """
+        if self.status not in [
             LoanOrderStatus.ISSUED.value,
             LoanOrderStatus.SHIPPED.value,
-        ]
+            LoanOrderStatus.PARTIAL_RETURN.value,
+        ]:
+            return False
+
+        return self.lines.filter(shipped__gt=0).exists()
 
     def _validate_transition(self, target_status: int) -> bool:
         """Validate that a status transition is allowed."""
@@ -766,8 +807,28 @@ class LoanOrder(
             )
 
     def _action_return(self, *args, **kwargs):
-        """Mark the LoanOrder as RETURNED."""
+        """Mark the LoanOrder as RETURNED, cascading to all line items."""
         if self.can_return:
+            # Update all shipped line items to RETURNED
+            for line in self.lines.exclude(
+                status__in=LoanOrderLineStatusGroups.COMPLETE
+                + LoanOrderLineStatusGroups.PROBLEM
+            ):
+                # Only return line items that have actually been shipped
+                if line.shipped > 0:
+                    if line.shipped > line.returned:
+                        line.returned = line.shipped
+                    line.status = LoanOrderLineStatus.RETURNED.value
+                    line.save(update_order=False)
+
+                    # Process allocations: mark them as fully returned
+                    for alloc in line.allocations.filter(quantity__gt=0):
+                        remaining = alloc.quantity - alloc.returned
+                        if remaining > 0:
+                            alloc.returned += remaining
+                            alloc.quantity = 0
+                            alloc.save()
+
             self.status = LoanOrderStatus.RETURNED.value
             self.return_date = InvenTree.helpers.current_date()
             self.save()
@@ -793,6 +854,8 @@ class LoanOrder(
     @transaction.atomic
     def approve_order(self):
         """Approve this loan order (requires superuser permission)."""
+        if self.line_count == 0:
+            raise ValidationError(_('Cannot approve a loan order with no line items'))
         if not self._validate_transition(LoanOrderStatus.APPROVED.value):
             raise ValidationError(_('Cannot approve order from current status'))
         return self.handle_transition(
@@ -802,6 +865,8 @@ class LoanOrder(
     @transaction.atomic
     def issue_order(self):
         """Issue this loan order."""
+        if self.line_count == 0:
+            raise ValidationError(_('Cannot issue a loan order with no line items'))
         if not self._validate_transition(LoanOrderStatus.ISSUED.value):
             raise ValidationError(_('Cannot issue order from current status'))
         return self.handle_transition(
@@ -829,6 +894,8 @@ class LoanOrder(
     @transaction.atomic
     def return_order(self):
         """Mark this loan order as returned."""
+        if self.line_count == 0:
+            raise ValidationError(_('Cannot return a loan order with no line items'))
         if not self._validate_transition(LoanOrderStatus.RETURNED.value):
             raise ValidationError(_('Cannot return order from current status'))
         return self.handle_transition(
@@ -868,6 +935,7 @@ class LoanOrder(
         if self.status not in [
             LoanOrderStatus.ISSUED.value,
             LoanOrderStatus.SHIPPED.value,
+            LoanOrderStatus.PARTIAL_RETURN.value,
         ]:
             # Auto-issue if pending or approved
             if self.status in [
@@ -892,11 +960,22 @@ class LoanOrder(
             if quantity <= 0:
                 raise ValidationError(_('Quantity must be greater than zero'))
 
+            # Check that we don't ship more than the line item requires
+            remaining_to_ship = line_item.quantity - line_item.shipped
+            if quantity > remaining_to_ship:
+                raise ValidationError(
+                    _('Shipping quantity ({qty}) exceeds remaining quantity ({remaining})').format(
+                        qty=quantity, remaining=remaining_to_ship,
+                    )
+                )
+
             # Check unallocated quantity on stock item
             available = stock_item.unallocated_quantity()
             if quantity > available:
                 raise ValidationError(
-                    _('Requested quantity exceeds available stock ({available})')
+                    _('Requested quantity exceeds available stock ({available})').format(
+                        available=available,
+                    )
                 )
 
             # Create or update allocation
@@ -934,6 +1013,7 @@ class LoanOrder(
                 status=LoanOrderLineStatus.SHIPPED.value
             ).exists():
                 self.status = LoanOrderStatus.SHIPPED.value
+                self.ship_date = self.ship_date or InvenTree.helpers.current_date()
                 self.save()
                 trigger_event(LoanOrderEvents.SHIPPED, id=self.pk)
 
@@ -1046,13 +1126,10 @@ class LoanOrder(
 
             returned_items.append(stock_item)
 
-            # Update allocation
+            # Update allocation (keep record for traceability)
             allocation.quantity -= quantity
             allocation.returned += quantity
-            if allocation.quantity <= 0:
-                allocation.delete()
-            else:
-                allocation.save()
+            allocation.save()
 
             # Update line item
             line = allocation.line
@@ -1073,6 +1150,15 @@ class LoanOrder(
             auto_complete = get_global_setting('LOANORDER_AUTO_COMPLETE', backup_value=True)
             if auto_complete:
                 self.return_order()
+        elif self.completed_line_count > 0 and self.pending_line_count > 0:
+            # Some items returned, some still out -> PARTIAL_RETURN
+            if self.status in [
+                LoanOrderStatus.ISSUED.value,
+                LoanOrderStatus.SHIPPED.value,
+            ]:
+                self.status = LoanOrderStatus.PARTIAL_RETURN.value
+                self.save()
+                trigger_event(LoanOrderEvents.PARTIAL_RETURN, id=self.pk)
 
         return returned_items
 
@@ -1127,12 +1213,40 @@ class LoanOrderLineItem(InvenTree.models.InvenTreeMetadataModel):
         """Validate the line item."""
         super().clean()
 
+        errors = {}
+
+        # Quantity must be positive
+        if self.quantity is not None and self.quantity <= 0:
+            errors['quantity'] = _('Quantity must be greater than zero')
+
         if self.part:
-            # Part must be salable (loanable items should typically be salable)
             if not self.part.salable:
-                raise ValidationError({
-                    'part': _('Only salable parts can be added to a loan order')
-                })
+                errors['part'] = _('Only salable parts can be added to a loan order')
+            if not self.part.active:
+                errors['part'] = _('Part is not active')
+
+        # Consistency checks (only on update, not initial creation)
+        if self.pk:
+            if self.shipped > self.quantity:
+                errors['shipped'] = _('Shipped quantity cannot exceed order quantity')
+            if self.returned > self.shipped:
+                errors['returned'] = _('Returned quantity cannot exceed shipped quantity')
+
+        # Cannot add lines to completed/cancelled orders
+        if self.order_id:
+            order_status = self.order.status
+            if order_status in (
+                LoanOrderStatusGroups.COMPLETE + LoanOrderStatusGroups.FAILED
+            ):
+                errors['order'] = _('Cannot modify line items for a completed or cancelled order')
+
+        # Line item target_date cannot exceed the order's due_date
+        if self.target_date and self.order_id and self.order.due_date:
+            if self.target_date > self.order.due_date:
+                errors['target_date'] = _('Target date cannot be after the order due date')
+
+        if errors:
+            raise ValidationError(errors)
 
     @staticmethod
     def get_api_url():
@@ -1363,7 +1477,8 @@ class LoanOrderLineItem(InvenTree.models.InvenTreeMetadataModel):
         # Check order status allows conversion
         if self.order.status not in [
             LoanOrderStatus.ISSUED.value,
-            LoanOrderStatus.ON_HOLD.value,
+            LoanOrderStatus.SHIPPED.value,
+            LoanOrderStatus.PARTIAL_RETURN.value,
         ]:
             return False
 

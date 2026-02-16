@@ -1,4 +1,5 @@
 import { t } from '@lingui/core/macro';
+import { Badge, Group, Text } from '@mantine/core';
 import { useMemo } from 'react';
 
 import { AddItemButton } from '@lib/components/AddItemButton';
@@ -8,7 +9,7 @@ import { ModelType } from '@lib/enums/ModelType';
 import { UserRoles } from '@lib/enums/Roles';
 import { apiUrl } from '@lib/functions/Api';
 import type { TableFilter } from '@lib/types/Filters';
-import { formatCurrency } from '../../defaults/formatters';
+import { formatCurrency, formatDate } from '../../defaults/formatters';
 import { useLoanOrderFields } from '../../forms/LoanOrderForms';
 import { useCreateApiFormModal } from '../../hooks/UseForm';
 import { useTable } from '../../hooks/UseTable';
@@ -22,8 +23,7 @@ import {
   ProjectCodeColumn,
   ReferenceColumn,
   ResponsibleColumn,
-  StatusColumn,
-  TargetDateColumn
+  StatusColumn
 } from '../ColumnRenderers';
 import {
   AssignedToMeFilter,
@@ -161,10 +161,27 @@ export function LoanOrderTable({
         sortable: true,
         defaultVisible: false
       },
-      TargetDateColumn({
+      {
         accessor: 'due_date',
-        title: t`Due Date`
-      }),
+        title: t`Due Date`,
+        sortable: true,
+        switchable: true,
+        render: (record: any) => {
+          if (!record.due_date) return null;
+          return (
+            <Group gap='xs' wrap='nowrap'>
+              <Text size='sm' c={record.overdue ? 'red' : undefined}>
+                {formatDate(record.due_date)}
+              </Text>
+              {record.overdue && (
+                <Badge color='red' size='xs' variant='filled'>
+                  {t`OVERDUE`}
+                </Badge>
+              )}
+            </Group>
+          );
+        }
+      },
       {
         accessor: 'return_date',
         title: t`Return Date`,

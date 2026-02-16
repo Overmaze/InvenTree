@@ -1,5 +1,5 @@
 import { t } from '@lingui/core/macro';
-import { Accordion, Grid, Skeleton, Stack, Text } from '@mantine/core';
+import { Accordion, Badge, Grid, Group, Skeleton, Stack, Text } from '@mantine/core';
 import {
   IconInfoCircle,
   IconList
@@ -38,7 +38,7 @@ import { PanelGroup } from '../../components/panels/PanelGroup';
 
 import { RenderAddress } from '../../components/render/Company';
 import { StatusRenderer } from '../../components/render/StatusRenderer';
-import { formatCurrency } from '../../defaults/formatters';
+import { formatCurrency, formatDate } from '../../defaults/formatters';
 import {
   useLoanOrderExtraLineFields,
   useLoanOrderFields
@@ -254,11 +254,32 @@ export default function LoanOrderDetail() {
       },
       {
         type: 'date',
+        name: 'ship_date',
+        label: t`Ship Date`,
+        icon: 'calendar',
+        copy: true,
+        hidden: !order.ship_date
+      },
+      {
+        type: 'text',
         name: 'due_date',
         label: t`Due Date`,
         icon: 'calendar',
         hidden: !order.due_date,
-        copy: true
+        copy: true,
+        value_formatter: () =>
+          order.overdue ? (
+            <Group gap='xs' wrap='nowrap'>
+              <Text size='sm' c='red' fw={700}>
+                {formatDate(order.due_date)}
+              </Text>
+              <Badge color='red' size='xs' variant='filled'>
+                {t`OVERDUE`}
+              </Badge>
+            </Group>
+          ) : (
+            formatDate(order.due_date)
+          )
       },
       {
         type: 'date',
@@ -482,15 +503,21 @@ export default function LoanOrderDetail() {
 
     const canReturn: boolean =
       canEdit &&
-      (order.status == loStatus.ISSUED || order.status == loStatus.SHIPPED);
+      (order.status == loStatus.ISSUED ||
+        order.status == loStatus.SHIPPED ||
+        order.status == loStatus.PARTIAL_RETURN);
 
     const canConvert: boolean =
       canEdit &&
-      (order.status == loStatus.ISSUED || order.status == loStatus.SHIPPED);
+      (order.status == loStatus.ISSUED ||
+        order.status == loStatus.SHIPPED ||
+        order.status == loStatus.PARTIAL_RETURN);
 
     const canWriteOff: boolean =
       canEdit &&
-      (order.status == loStatus.ISSUED || order.status == loStatus.SHIPPED);
+      (order.status == loStatus.ISSUED ||
+        order.status == loStatus.SHIPPED ||
+        order.status == loStatus.PARTIAL_RETURN);
 
     return [
       <PrimaryActionButton
@@ -569,16 +596,26 @@ export default function LoanOrderDetail() {
   }, [user, order, loStatus, globalSettings]);
 
   const orderBadges: ReactNode[] = useMemo(() => {
-    return instanceQuery.isLoading
-      ? []
-      : [
-          <StatusRenderer
-            status={order.status_custom_key}
-            type={ModelType.loanorder}
-            options={{ size: 'lg' }}
-            key={order.pk}
-          />
-        ];
+    if (instanceQuery.isLoading) return [];
+
+    const badges: ReactNode[] = [
+      <StatusRenderer
+        status={order.status_custom_key}
+        type={ModelType.loanorder}
+        options={{ size: 'lg' }}
+        key={order.pk}
+      />
+    ];
+
+    if (order.overdue) {
+      badges.push(
+        <Badge color='red' size='lg' variant='filled' key='overdue'>
+          {t`OVERDUE`}
+        </Badge>
+      );
+    }
+
+    return badges;
   }, [order, instanceQuery]);
 
   const subtitle: string = useMemo(() => {
