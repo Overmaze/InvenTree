@@ -11,6 +11,7 @@ import {
 import type { ApiEndpoints } from '@lib/enums/ApiEndpoints';
 import type { UserRoles } from '@lib/enums/Roles';
 import { apiUrl } from '@lib/functions/Api';
+import type { ApiFormFieldSet } from '@lib/types/Forms';
 import type { TableColumn } from '@lib/types/Tables';
 import { formatCurrency } from '../../defaults/formatters';
 import { extraLineItemFields } from '../../forms/CommonForms';
@@ -36,7 +37,8 @@ export default function ExtraLineItemTable({
   orderDetailRefresh,
   currency,
   editable,
-  role
+  role,
+  fieldOverrides
 }: Readonly<{
   endpoint: ApiEndpoints;
   orderId: number;
@@ -44,6 +46,7 @@ export default function ExtraLineItemTable({
   orderDetailRefresh: () => void;
   currency: string;
   role: UserRoles;
+  fieldOverrides?: ApiFormFieldSet;
 }>) {
   const table = useTable('extra-line-item');
   const user = useUserState();
@@ -90,10 +93,12 @@ export default function ExtraLineItemTable({
 
   const [selectedLine, setSelectedLine] = useState<number>(0);
 
+  const formFields = fieldOverrides ?? extraLineItemFields();
+
   const newLineItem = useCreateApiFormModal({
     url: endpoint,
     title: t`Add Line Item`,
-    fields: extraLineItemFields(),
+    fields: formFields,
     initialData: {
       ...initialData,
       price_currency: currency
@@ -106,7 +111,7 @@ export default function ExtraLineItemTable({
     url: endpoint,
     pk: selectedLine,
     title: t`Edit Line Item`,
-    fields: extraLineItemFields(),
+    fields: formFields,
     onFormSuccess: orderDetailRefresh,
     table: table
   });

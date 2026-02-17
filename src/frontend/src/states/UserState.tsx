@@ -39,15 +39,8 @@ export const useUserState = create<UserStateProps>((set, get) => ({
     setApiDefaults();
   },
   fetchUserToken: async () => {
-    // If neither the csrf or session cookies are available, we cannot fetch a token
-    if (
-      !document.cookie.includes('csrftoken') &&
-      !document.cookie.includes('sessionid')
-    ) {
-      get().setAuthenticated(false);
-      return;
-    }
-
+    // Always check the session endpoint - sessionid is HttpOnly so
+    // document.cookie cannot detect it, but the browser still sends it
     await api
       .get(apiUrl(ApiEndpoints.auth_session))
       .then((response) => {

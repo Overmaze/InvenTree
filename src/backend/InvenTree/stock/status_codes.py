@@ -96,3 +96,8 @@ class StockHistoryCode(StatusCode):
     # Customer actions
     SENT_TO_CUSTOMER = 100, _('Sent to customer')
     RETURNED_FROM_CUSTOMER = 105, _('Returned from customer')
+
+    # Loan order codes
+    LOANED_OUT = 110, _('Loaned out')
+    RETURNED_FROM_LOAN = 115, _('Returned from loan')
+    CONVERTED_FROM_LOAN_TO_SALE = 120, _('Converted from loan to sale')

@@ -101,6 +101,13 @@ function DrawerContent({ closeFunc }: Readonly<{ closeFunc?: () => void }>) {
         icon: 'sales_orders'
       },
       {
+        id: 'loans',
+        title: t`Loans`,
+        link: '/loan/',
+        hidden: !user.hasViewRole(UserRoles.loan_order),
+        icon: 'transfer'
+      },
+      {
         id: 'users',
         title: t`Users`,
         link: '/core/index/users',

@@ -195,6 +195,24 @@ export enum ApiEndpoints {
   return_order_line_list = 'order/ro-line/',
   return_order_extra_line_list = 'order/ro-extra-line/',
 
+  // Loan Order API endpoints
+  loan_order_list = 'loan/',
+  loan_order_approve = 'loan/:id/approve/',
+  loan_order_issue = 'loan/:id/issue/',
+  loan_order_hold = 'loan/:id/hold/',
+  loan_order_cancel = 'loan/:id/cancel/',
+  loan_order_return = 'loan/:id/return/',
+  loan_order_convert = 'loan/:id/convert/',
+  loan_order_convert_items = 'loan/:id/convert-items/',
+  loan_order_write_off = 'loan/:id/write-off/',
+  loan_order_ship = 'loan/:id/ship/',
+  loan_order_ship_all = 'loan/:id/ship-all/',
+  loan_order_return_items = 'loan/:id/return-items/',
+  loan_order_sell_returned_items = 'loan/:id/sell-returned-items/',
+  loan_order_line_list = 'loan/line/',
+  loan_order_allocation_list = 'loan/allocation/',
+  loan_order_extra_line_list = 'loan/extra-line/',
+
   // Template API endpoints
   label_list = 'label/template/',
   label_print = 'label/print/',

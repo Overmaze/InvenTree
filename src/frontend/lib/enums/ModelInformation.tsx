@@ -206,6 +206,28 @@ export const ModelInformationDict: ModelDict = {
     api_endpoint: ApiEndpoints.return_order_line_list,
     icon: 'return_orders'
   },
+  loanorder: {
+    label: () => t`Loan`,
+    label_multiple: () => t`Loans`,
+    url_overview: '/loan/index/loanorders',
+    url_detail: '/loan/loan-order/:pk/',
+    api_endpoint: ApiEndpoints.loan_order_list,
+    admin_url: '/loan/loanorder/',
+    supports_barcode: true,
+    icon: 'transfer'
+  },
+  loanorderlineitem: {
+    label: () => t`Loan Line`,
+    label_multiple: () => t`Loan Lines`,
+    api_endpoint: ApiEndpoints.loan_order_line_list,
+    icon: 'transfer'
+  },
+  loanorderallocation: {
+    label: () => t`Loan Allocation`,
+    label_multiple: () => t`Loan Allocations`,
+    api_endpoint: ApiEndpoints.loan_order_allocation_list,
+    icon: 'transfer'
+  },
   address: {
     label: () => t`Address`,
     label_multiple: () => t`Addresses`,

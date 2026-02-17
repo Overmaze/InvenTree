@@ -1536,12 +1536,53 @@ class StockItem(
 
         return total
 
+    def get_loan_order_allocations(self, active=True, **kwargs):
+        """Return a queryset for LoanOrderAllocations against this StockItem.
+
+        Arguments:
+            active: Filter by 'active' status of the allocation
+        """
+        from loan.status_codes import LoanOrderStatusGroups
+
+        query = self.loan_order_allocations.all()
+
+        if filter_allocations := kwargs.get('filter_allocations'):
+            query = query.filter(**filter_allocations)
+
+        if exclude_allocations := kwargs.get('exclude_allocations'):
+            query = query.exclude(**exclude_allocations)
+
+        if active is True:
+            query = query.filter(
+                line__order__status__in=LoanOrderStatusGroups.OPEN,
+                quantity__gt=0,  # Still has unreturned quantity
+            )
+        elif active is False:
+            query = query.exclude(
+                line__order__status__in=LoanOrderStatusGroups.OPEN
+            )
+
+        return query
+
+    def loan_allocation_count(self, active=True, **kwargs):
+        """Return the total quantity allocated to LoanOrders."""
+        query = self.get_loan_order_allocations(active=active, **kwargs)
+        query = query.aggregate(q=Coalesce(Sum('quantity'), Decimal(0)))
+
+        total = query['q']
+
+        if total is None:
+            total = Decimal(0)
+
+        return total
+
     def allocation_count(self):
-        """Return the total quantity allocated to builds or orders."""
+        """Return the total quantity allocated to builds, sales orders, or loan orders."""
         bo = self.build_allocation_count()
         so = self.sales_order_allocation_count()
+        lo = self.loan_allocation_count()
 
-        return bo + so
+        return bo + so + lo
 
     def unallocated_quantity(self):
         """Return the quantity of this StockItem which is *not* allocated."""

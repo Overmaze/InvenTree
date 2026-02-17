@@ -12,6 +12,8 @@ export const statusCodeList: Record<string, ModelType> = {
   ReturnOrderStatus: ModelType.returnorder,
   ReturnOrderLineStatus: ModelType.returnorderlineitem,
   SalesOrderStatus: ModelType.salesorder,
+  LoanOrderStatus: ModelType.loanorder,
+  LoanOrderLineStatus: ModelType.loanorderlineitem,
   StockHistoryCode: ModelType.stockhistory,
   StockStatus: ModelType.stockitem,
   DataImportStatusCode: ModelType.importsession

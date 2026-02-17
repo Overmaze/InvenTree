@@ -1,0 +1,246 @@
+# Loan module test fixtures
+# This file contains test data for the loan module
+
+# Note: These fixtures depend on:
+# - Company fixtures (for borrower_company)
+# - Part fixtures (for line items)
+# - Stock fixtures (for allocations)
+
+# Loan Orders
+
+# Loan Order 1 - PENDING status
+- model: loan.loanorder
+  pk: 1
+  fields:
+    reference: 'LO-0001'
+    description: 'Loan of screws and capacitors to ACME'
+    borrower_company: 1  # ACME
+    status: 10  # PENDING
+    due_date: '2026-03-01'
+
+# Loan Order 2 - ISSUED status (ready for shipping/testing)
+- model: loan.loanorder
+  pk: 2
+  fields:
+    reference: 'LO-0002'
+    description: 'Electronics components loan to Appel Computers'
+    borrower_company: 2  # Appel Computers
+    status: 20  # ISSUED
+    due_date: '2026-03-15'
+
+# Loan Order 3 - ON_HOLD status
+- model: loan.loanorder
+  pk: 3
+  fields:
+    reference: 'LO-0003'
+    description: 'Widget loan on hold'
+    borrower_company: 4  # A customer
+    status: 25  # ON_HOLD
+    due_date: '2026-04-01'
+
+# Loan Order 4 - RETURNED status
+- model: loan.loanorder
+  pk: 4
+  fields:
+    reference: 'LO-0004'
+    description: 'Returned loan of resistors'
+    borrower_company: 5  # Another customer
+    status: 30  # RETURNED
+    due_date: '2026-02-01'
+    return_date: '2026-02-05'
+
+# Loan Order 5 - CANCELLED status
+- model: loan.loanorder
+  pk: 5
+  fields:
+    reference: 'LO-0005'
+    description: 'Cancelled loan order'
+    borrower_company: 1  # ACME
+    status: 50  # CANCELLED
+
+# Line Items for Loan Order 1 (PENDING)
+- model: loan.loanorderlineitem
+  pk: 1
+  fields:
+    order: 1
+    part: 1  # M2x4 LPHS screw
+    quantity: 1000
+    notes: '1000 screws for assembly project'
+
+- model: loan.loanorderlineitem
+  pk: 2
+  fields:
+    order: 1
+    part: 5  # C_22N_0805 capacitor
+    quantity: 100
+    notes: '100 capacitors for testing'
+
+# Line Items for Loan Order 2 (ISSUED - ready for shipping)
+- model: loan.loanorderlineitem
+  pk: 3
+  fields:
+    order: 2
+    part: 3  # R_2K2_0805 resistor
+    quantity: 500
+    notes: '500 resistors for prototyping'
+
+- model: loan.loanorderlineitem
+  pk: 4
+  fields:
+    order: 2
+    part: 5  # C_22N_0805 capacitor
+    quantity: 200
+    notes: '200 capacitors for development'
+
+# Line Items for Loan Order 3 (ON_HOLD)
+- model: loan.loanorderlineitem
+  pk: 5
+  fields:
+    order: 3
+    part: 25  # Widget
+    quantity: 3
+    notes: '3 widgets for evaluation'
+
+# Line Items for Loan Order 4 (RETURNED)
+- model: loan.loanorderlineitem
+  pk: 6
+  fields:
+    order: 4
+    part: 3  # R_2K2_0805 resistor
+    quantity: 100
+    notes: '100 resistors - already returned'
+
+# Allocations for Loan Order 2 (ISSUED - ready for shipping)
+# These are allocations ready to be shipped
+
+- model: loan.loanorderallocation
+  pk: 1
+  fields:
+    line: 3  # 500 resistors line item
+    item: 1234  # Stock item with 1234 resistors available
+    quantity: 500
+
+- model: loan.loanorderallocation
+  pk: 2
+  fields:
+    line: 4  # 200 capacitors line item
+    item: 11  # Stock item with 666 capacitors available
+    quantity: 200
+
+# Loan Order 6 - APPROVED status (awaiting issue)
+- model: loan.loanorder
+  pk: 6
+  fields:
+    reference: 'LO-0006'
+    description: 'Approved loan awaiting issue'
+    borrower_company: 2  # Appel Computers
+    status: 15  # APPROVED
+    due_date: '2026-03-20'
+
+# Loan Order 7 - ISSUED with shipped items ready for conversion
+- model: loan.loanorder
+  pk: 7
+  fields:
+    reference: 'LO-0007'
+    description: 'Active loan ready for conversion to sale'
+    borrower_company: 1  # ACME
+    status: 20  # ISSUED
+    issue_date: '2026-01-15'
+    due_date: '2026-03-30'
+
+# Loan Order 8 - PARTIAL_RETURN status (some items returned, some still on loan)
+- model: loan.loanorder
+  pk: 8
+  fields:
+    reference: 'LO-0008'
+    description: 'Partially returned loan'
+    borrower_company: 4  # A customer
+    status: 35  # PARTIAL_RETURN
+    issue_date: '2026-01-10'
+    due_date: '2026-03-10'
+
+# Line Items for Loan Order 6 (APPROVED)
+- model: loan.loanorderlineitem
+  pk: 7
+  fields:
+    order: 6
+    part: 1  # M2x4 LPHS screw
+    quantity: 500
+    notes: 'Approved order ready to issue'
+
+# Line Items for Loan Order 7 (ISSUED - ready for conversion)
+- model: loan.loanorderlineitem
+  pk: 8
+  fields:
+    order: 7
+    part: 3  # R_2K2_0805 resistor
+    quantity: 300
+    shipped: 300
+    returned: 0
+    notes: 'All items shipped, customer wants to buy'
+    status: 20  # SHIPPED
+
+- model: loan.loanorderlineitem
+  pk: 9
+  fields:
+    order: 7
+    part: 5  # C_22N_0805 capacitor
+    quantity: 150
+    shipped: 150
+    returned: 0
+    notes: 'Shipped capacitors, available for conversion'
+    status: 20  # SHIPPED
+
+# Line Items for Loan Order 8 (PARTIAL_RETURN)
+- model: loan.loanorderlineitem
+  pk: 10
+  fields:
+    order: 8
+    part: 1  # M2x4 LPHS screw
+    quantity: 200
+    shipped: 200
+    returned: 100
+    notes: 'Half returned, customer bought the other half'
+    status: 20  # SHIPPED (still tracking as some on loan)
+    converted_quantity: 0
+    returned_and_sold_quantity: 50  # Customer bought 50 of the returned items
+    converted_date: '2026-02-01'
+
+- model: loan.loanorderlineitem
+  pk: 11
+  fields:
+    order: 8
+    part: 25  # Widget
+    quantity: 10
+    shipped: 10
+    returned: 4
+    converted_quantity: 6  # Customer bought 6 while they were on loan
+    returned_and_sold_quantity: 0
+    notes: 'Customer converted 6 items to sale while on loan'
+    status: 40  # CONVERTED_TO_SALE
+    converted_date: '2026-01-25'
+
+# Sample Conversion Records
+# Conversion 1: Line item 11 - customer bought 6 widgets while on loan
+- model: loan.loanorderlineconversion
+  pk: 1
+  fields:
+    loan_line: 11
+    quantity: 6
+    converted_date: '2026-01-25'
+    is_returned_items: false
+    conversion_price: 45.00
+    conversion_price_currency: 'USD'
+    notes: 'Customer decided to purchase 6 widgets during loan period'
+
+# Conversion 2: Line item 10 - customer bought 50 returned screws
+- model: loan.loanorderlineconversion
+  pk: 2
+  fields:
+    loan_line: 10
+    quantity: 50
+    converted_date: '2026-02-01'
+    is_returned_items: true
+    conversion_price: 0.15
+    conversion_price_currency: 'USD'
+    notes: 'Customer purchased 50 of the returned screws'

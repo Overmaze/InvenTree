@@ -74,7 +74,7 @@ export async function doBasicLogin(
   code?: string
 ) {
   const { getHost } = useLocalState.getState();
-  const { clearUserState, setAuthenticated, fetchUserState } =
+  const { clearUserState, setAuthenticated, fetchUserState, isLoggedIn } =
     useUserState.getState();
   const { setAuthContext, setMfaContext } = useServerApiState.getState();
 
@@ -119,13 +119,27 @@ export async function doBasicLogin(
             await handlePossibleMFAError(err);
             break;
           case 409:
-            notifications.show({
-              title: t`Already logged in`,
-              message: t`There is a conflicting session on the server for this browser. Please logout of that first.`,
-              color: 'red',
-              id: 'auth-login-error',
-              autoClose: false
-            });
+            // Already authenticated - try to use the existing session
+            setAuthenticated(true);
+            await fetchUserState();
+            if (isLoggedIn()) {
+              loginDone = true;
+              success = true;
+            } else {
+              // Session exists but is unusable - clear it so user can login fresh
+              await ensureCsrf();
+              await api
+                .delete(apiUrl(ApiEndpoints.auth_session))
+                .catch(() => {});
+              clearUserState();
+              clearCsrfCookie();
+              notifications.show({
+                title: t`Session cleared`,
+                message: t`A stale session was cleared. Please login again.`,
+                color: 'yellow',
+                id: 'auth-login-error'
+              });
+            }
             break;
           default:
             notifications.show({
@@ -337,15 +351,29 @@ export async function handleMfaLogin(
       handleSuccessFullAuth(response, navigate, location, setError);
       return true;
     })
-    .catch((err) => {
+    .catch(async (err) => {
       // Already logged in, but with a different session
       if (err?.response?.status == 409) {
-        notifications.show({
-          title: t`Already logged in`,
-          message: t`There is a conflicting session on the server for this browser. Please logout of that first.`,
-          color: 'red',
-          autoClose: false
-        });
+        const {
+          setAuthenticated: setAuth,
+          fetchUserState: fetchUser,
+          isLoggedIn: checkLoggedIn
+        } = useUserState.getState();
+        setAuth(true);
+        await fetchUser();
+        if (checkLoggedIn()) {
+          return true;
+        }
+        // Session unusable - clear it
+        await ensureCsrf();
+        await api
+          .delete(apiUrl(ApiEndpoints.auth_session))
+          .catch(() => {});
+        useUserState.getState().clearUserState();
+        clearCsrfCookie();
+        setError(
+          t`A stale session was cleared. Please try logging in again.`
+        );
         // MFA trust flow pending
       } else if (err?.response?.status == 401) {
         const mfa_trust = err.response.data.data.flows.find(
