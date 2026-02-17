@@ -20,7 +20,7 @@ from generic.states.api import StatusView
 from InvenTree.api import (
     BulkUpdateMixin,
     ListCreateDestroyAPIView,
-    MetadataView,
+    meta_path,
     ParameterListMixin,
 )
 from InvenTree.fields import InvenTreeOutputOption, OutputConfiguration
@@ -893,7 +893,7 @@ loan_order_api_urls = [
             path('ship/', LoanOrderShipItems.as_view(), name='api-loan-order-ship'),
             path('ship-all/', LoanOrderShipAll.as_view(), name='api-loan-order-ship-all'),
             path('return-items/', LoanOrderReturnItems.as_view(), name='api-loan-order-return-items'),
-            path('metadata/', MetadataView.as_view(model=models.LoanOrder), name='api-loan-order-metadata'),
+            meta_path(models.LoanOrder),
             path('', LoanOrderDetail.as_view(), name='api-loan-order-detail'),
         ]),
     ),

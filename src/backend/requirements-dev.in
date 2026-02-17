@@ -1,5 +1,4 @@
 # Dev requirements for InvenTree
--c requirements.txt
 coverage[toml]                          # Unit test coverage
 django-querycount                       # Display number of URL queries for requests
 django-silk                             # API query profiling
@@ -14,3 +13,5 @@ ty                                      # type checking
 django-types                            # typing
 django-stubs                            # typing
 requests-mock                           # Mock requests for unit tests
+pytest-codspeed                         # Performance testing with Codspeed
+pytest-django                           # Pytest support for Django (for benchnmarking)
